@@ -7,5 +7,5 @@ https://create.arduino.cc/projecthub/L-Rosen/serial-to-lanc-control-l-70f735
 Using the command codes found here:
 https://forum.blackmagicdesign.com/viewtopic.php?f=2&t=16676
 
-Wifi config info found heres:
+Wifi AP server info found here:
 https://42bots.com/tutorials/esp8266-example-wi-fi-access-point-web-server-static-ip-remote-control/
