@@ -4,15 +4,20 @@
   For communicating with cameras via LANC
   For the interface circuit interface see
   http://controlyourcamera.blogspot.com/2011/02/arduino-controlled-video-recording-over.html
+
   "LANC" is a registered trademark of SONY.
   CANON calls their LANC compatible port "REMOTE".
+
   Written by L.Rosén
+
   ------------------------------------------------------------------------------------------
   Comments regarding service mode for Sony second generation D8 camcorders:
   DCR-TRV8000E, DCR-TRV8100E, DCR-TRV120E, DCR-TRV125E, DCR-TRV320E, DCR-TRV325E
   DCR-TRV420E, DCR-TRV520E, DCR-TRV620E, DCR-TRV725E
+
   LANC message layout when reading/writing EEPROM(8 bytes each sent with LSB first)
   B0 B1 B2 B3 B4 B5 B6 B7
+
   B0 = First sent byte from our adapter
   B1 = Second sent byte from our adapter
   B2
@@ -21,6 +26,7 @@
   B5 = Confirmation that the command has been received, read command confirmed with F0h, write commands confirmed with F1h
   B6 = Tells which address in the EEPROM you are at
   B7 = Data at address
+
   The following commands is used to navigate the EEPROM and change data
   B1 B2
   FFh 00h = Read command, tells you current page:address:data without changing anything
@@ -31,6 +37,7 @@
   FFh 34h = Increase data by 1
   FFh 30h = Decrase data by 1
   FFh 32h = STORE command
+
   Metod for checksums (PAGE:ADDRESS:DATA):
   1) enable changes in memory: 00:01:00 to 00:01:01 (Store)
   2) change data on page D, how You need (all with STORE).
@@ -47,44 +54,29 @@
   6) disable changes:
   00:FF:02 -> 00:FF:00 (STORE)
   00:01:80 -> 00:01:00 (STORE)
+
   Links to more information:
   http://lea.hamradio.si/~s51kq/DV-IN.HTM
   http://www.sps.volyne.cz/set1394/anin/code20.html
-  https://forum.blackmagicdesign.com/viewtopic.php?f=2&t=16676
+
   ------------------------------------------------------------------------------------------
 */
 
 // The code uses fast I/O write because its time critical,
 // therefore setting pins are done by writing directly to the registers:
-#define cmdPinON (PORTD = B10000000)   // Set digtal pin 7 (PD7)
-#define cmdPinOFF (PORTD = B00000000)  // Reset digtal pin 7 (PD7)
-#define ledON (PORTB = B00100000)      // Set LED pin 13 (PB5)
-#define ledOFF (PORTB = B00000000)     // Reset LED pin 13 (PB5)
-#define lancPinREAD (PINB & B00001000) // Reads pin 11 (PB3)
-#define lancPin 11
+#define lancPin 13
+#define cmdPin 15
+#define ledPin LED_BUILTIN
+#define cmdPinON (digitalWrite(cmdPin, HIGH))   // Set digtal pin 7 (PD7)
+#define cmdPinOFF (digitalWrite(cmdPin, LOW))  // Reset digtal pin 7 (PD7)
+#define ledON (digitalWrite(ledPin, HIGH))      // Set LED pin 13 (PB5)
+#define ledOFF (digitalWrite(ledPin, LOW))     // Reset LED pin 13 (PB5)
+#define lancPinREAD (digitalRead(lancPin)) // Reads pin 11 (PB3)
 
-String RecordStart = "1833";
-String RecordStop = "8C19";
-String IrisIncrement = "2855"; // Used for IDLE state
-String IrisDecrement = "2853"; // Used for IDLE state
-String IrisRecIncrement = "942A"; // Used for RECORD state
-String IrisRecDecrement = "9429"; // Used for RECORD state
-String IrisAutoAdjust = "28AF";
-String FocusShuttleFar = "28E0"; // Used for IDLE state (value mask 0x0F00: 1 3 5 7 9 B D F)
-String FocusShuttleNear = "28F0"; // Used for IDLE state (value mask 0x0F00: 1 3 5 7 9 B D F)
-String FocusShuttleRecFar = "9470"; // Used for RECORD state (value mask 0x0700: 0 1 2 3 4 5 6 7)
-String FocusShuttleRecNear = "9478"; // Used for RECORD state (value mask 0x0700: 0 1 2 3 4 5 6 7)
-String FocusFar = "2845"; // Used for IDLE state
-String FocusNear = "2847"; // Used for IDLE state
-String FocusRecFar = "9422"; // Used for RECORD state
-String FocusRecNear = "9423"; // Used for RECORD state
-String FocusAuto = "2843";
-
-char serialInputString[2];
-int serialStrPointer = 0;
 
 int bitDura = 104;           // Duration of one LANC bit in microseconds, orginal 104
 int halfbitDura = 52;        // Half of bitDura
+byte strPointer = 0;         // Index when receiving chars
 char inString[5];            // A string to hold incoming data
 char outString[25];          // A string to hold outgoing data
 boolean strComplete = false; // Indicator to see if the string is complete
@@ -92,12 +84,11 @@ boolean lancCmd[16];         // Array for the lancCmd in bits
 boolean lancMessage[64];     // Array for the complete LANC message in bits
 
 void setup() {
-  DDRD = DDRD | B10000000;    // Config cmdPin as output
-  DDRB = DDRB & B11110111;    // Config lancPin as input
-  DDRB = DDRB | B00100000;    // Config ledPin as output
-  pinMode(lancPin, INPUT);    // Listens to the LANC line, used for pulseIn function
+  pinMode(cmdPin, OUTPUT);
+  pinMode(lancPin, INPUT);
+  pinMode(ledPin, OUTPUT);
   cmdPinOFF;                  // Reset LANC control pin so that the LANC line is unaffected(HIGH)
-  Serial.begin(57600);        // Start serial port
+  Serial.begin(9600);        // Start serial port
   Serial.println("Welcome to the Arduino LANC-RS232 interface");
   Serial.println("Send two bytes in hex form etc. 02AF and wait for reply from camera");
 }
@@ -105,22 +96,73 @@ void setup() {
 
 void loop() {
 
-  executeCommand(RecordStart);
+  while (Serial.available()) {
+    char inChar = (char)Serial.read();                               // Get the new byte
+    inString[strPointer++] = inChar;                                 // Add it to the input string
+    if ((inChar == '\n') || (inChar == '\r') || (strPointer > 4)) {  // If the incoming character is a newline, carriage return or 4 bytes has been received flag so the main loop can act
+      strComplete = true;
+      strPointer = 0;
+    }
+  }
 
   if (strComplete) {                     // inString has arrived
+    for (int i = 0; i < 4 ; i++) {    // Write back LANC message over serial
+      Serial.print(inString[i]);
+    }
+    Serial.print('\n');
     if (hexchartobitarray()) {           // Convert hex chars to bitarray
       sendLanc(4);                       // The LANC command needs to be repeated 4 times
+      bitarraytohexchar();               // Convert received bitarray to hex chars
+      for (int i = 0; i < 24 ; i++) {    // Write back LANC message over serial
+        Serial.print(outString[i]);
+      }
+      Serial.print('\n');
     }
     else {
-      Serial.println("Faulty command!");
+      Serial.println("Faulty input!");
     }
+
     for (int i = 0 ; i < 5 ; i++) {       // Clear input array
       inString[i] = 0;
     }
     strComplete = false;                  // Reset data received flag
   }
 
-  delay(500);
+}
+
+void executeCommand(String command){
+  inString[0] = command.charAt(0);
+  inString[1] = command.charAt(1);
+  inString[2] = command.charAt(2);
+  inString[3] = command.charAt(3);
+  strComplete = true;
+}
+
+
+void bitarraytohexchar() {
+  // The bit array lancMessage contains the whole LANC message (8 bytes) with LSB first
+  // This function converts them to hex chars and stores them in outString (16 chars)
+
+  byte temp = 0;
+
+  for ( int i = 0 ; i < 8 ; i++) {  // Byte loop
+
+    for ( int j = 0 ; j < 4 ; j++) { // Bit loop
+      temp += (pow2(j) * lancMessage[(j + 4) + i * 8]);
+    }
+    outString[i * 3] = bytetohexchar(temp);
+    temp = 0;
+
+    for ( int j = 0 ; j < 4 ; j++) { // Bit loop
+      temp += (pow2(j) * lancMessage[j + i * 8]);
+    }
+    outString[i * 3 + 1] = bytetohexchar(temp);
+    outString[i * 3 + 2] = ' ';
+    temp = 0;
+  }
+
+  outString[24] = '\n';
+
 }
 
 
@@ -209,71 +251,7 @@ void sendLanc(byte repeats) {
   response.  Multiple bytes of data may be available.
 */
 void serialEvent() {
-
-  while (Serial.available()) {
-    char inChar = (char)Serial.read();                               // Get the new byte
-
-    Serial.println(inChar);
-
-    if ((inChar == '\n') || (inChar == '\r') || (serialStrPointer > 2)) {  // If the incoming character is a newline, carriage return or 4 bytes has been received flag so the main loop can act
-      serialFlush();
-      
-      if(String(serialInputString) == "0"){
-        Serial.println("Recording");
-        executeCommand(RecordStart);
-      }
-
-      if(String(serialInputString) == "1"){
-        executeCommand(IrisIncrement);
-      }
-
-      if(String(serialInputString) == "2"){
-        executeCommand(IrisDecrement);
-      }
-
-      if(String(serialInputString) == "3"){
-        executeCommand(FocusFar);
-      }
-
-      
-      if(String(serialInputString) == "4"){
-        executeCommand(FocusNear);
-      }
-
-      
-      if(String(serialInputString) == "5"){
-        executeCommand(FocusAuto);
-      }
-
-      
-      if(String(serialInputString) == "6"){
-        executeCommand(IrisAutoAdjust);
-      }
-      
-      // Clear the string
-      serialInputString[0] = 0;
-      serialInputString[1] = 0;
-      serialStrPointer = 0;
-      return;
-    } else {
-      serialInputString[serialStrPointer++] = inChar;                                 // Add it to the input string
-    }
-  }
-}
-
-void serialFlush() {
-  while (Serial.available() > 0 ) {
-    Serial.read();
-  }
-}
-
-
-void executeCommand(String command) { // Use this to execute a command. The commands are all defined as strings above, just pass one in as a parameter.
-  inString[0] = command.charAt(0);
-  inString[1] = command.charAt(1);
-  inString[2] = command.charAt(2);
-  inString[3] = command.charAt(3);
-  strComplete = true;
+  
 }
 
 
@@ -380,3 +358,4 @@ int hexchartoint(char hexchar) {
       break;
   }
 }
+
