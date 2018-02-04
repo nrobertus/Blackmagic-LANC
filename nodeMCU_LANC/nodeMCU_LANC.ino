@@ -8,8 +8,6 @@
   "LANC" is a registered trademark of SONY.
   CANON calls their LANC compatible port "REMOTE".
 
-  Written by L.Rosén
-
   ------------------------------------------------------------------------------------------
   Comments regarding service mode for Sony second generation D8 camcorders:
   DCR-TRV8000E, DCR-TRV8100E, DCR-TRV120E, DCR-TRV125E, DCR-TRV320E, DCR-TRV325E
@@ -62,8 +60,118 @@
   ------------------------------------------------------------------------------------------
 */
 
-// The code uses fast I/O write because its time critical,
-// therefore setting pins are done by writing directly to the registers:
+///////////////////////////
+// Libaries              //
+///////////////////////////
+
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <WiFiUdp.h>
+#include <ESP8266WebServer.h>
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////// Wifi Common code ////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+IPAddress    apIP(42, 42, 42, 42);  // Defining a static IP address: local & gateway
+// Default IP in AP mode is 192.168.4.1
+
+/* This are the WiFi access point settings. Update them to your likin */
+const char *ssid = "ESP8266";
+const char *password = "ESP8266Test";
+
+// Define a web server at port 80 for HTTP
+ESP8266WebServer server(80);
+
+const int ledPin = D1; // an LED is connected to NodeMCU pin D1 (ESP8266 GPIO5) via a 1K Ohm resistor
+
+bool ledState = false;
+
+void handleRoot() {
+  digitalWrite (LED_BUILTIN, 0); //turn the built in LED on pin DO of NodeMCU on
+  digitalWrite (ledPin, server.arg("led").toInt());
+  ledState = digitalRead(ledPin);
+
+  /* Dynamically generate the LED toggle link, based on its current state (on or off)*/
+  char ledText[80];
+
+  if (ledState) {
+    strcpy(ledText, "LED is on. <a href=\"/?led=0\">Turn it OFF!</a>");
+  }
+
+  else {
+    strcpy(ledText, "LED is OFF. <a href=\"/?led=1\">Turn it ON!</a>");
+  }
+
+  ledState = digitalRead(ledPin);
+
+  char html[1000];
+  int sec = millis() / 1000;
+  int min = sec / 60;
+  int hr = min / 60;
+
+  int brightness = analogRead(A0);
+  brightness = (int)(brightness + 5) / 10; //converting the 0-1024 value to a (approximately) percentage value
+
+  // Build an HTML page to display on the web-server root address
+  snprintf ( html, 1000,
+
+             "<html>\
+  <head>\
+    <meta http-equiv='refresh' content='10'/>\
+    <title>ESP8266 WiFi Network</title>\
+    <style>\
+      body { background-color: #cccccc; font-family: Arial, Helvetica, Sans-Serif; font-size: 1.5em; Color: #000000; }\
+      h1 { Color: #AA0000; }\
+    </style>\
+  </head>\
+  <body>\
+    <h1>ESP8266 Wi-Fi Access Point and Web Server Demo</h1>\
+    <p>Uptime: %02d:%02d:%02d</p>\
+    <p>Brightness: %d%</p>\
+    <p>%s<p>\
+    <p>This page refreshes every 10 seconds. Click <a href=\"javascript:window.location.reload();\">here</a> to refresh the page now.</p>\
+  </body>\
+</html>",
+
+             hr, min % 60, sec % 60,
+             brightness,
+             ledText
+           );
+  server.send ( 200, "text/html", html );
+  digitalWrite ( LED_BUILTIN, 1 );
+}
+
+
+void handleNotFound() {
+  digitalWrite ( LED_BUILTIN, 0 );
+  String message = "File Not Found\n\n";
+  message += "URI: ";
+  message += server.uri();
+  message += "\nMethod: ";
+  message += ( server.method() == HTTP_GET ) ? "GET" : "POST";
+  message += "\nArguments: ";
+  message += server.args();
+  message += "\n";
+
+  for ( uint8_t i = 0; i < server.args(); i++ ) {
+    message += " " + server.argName ( i ) + ": " + server.arg ( i ) + "\n";
+  }
+
+  server.send ( 404, "text/plain", message );
+  digitalWrite ( LED_BUILTIN, 1 ); //turn the built in LED on pin DO of NodeMCU off
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////// LANC common code //////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+///////////////////////////
+// Defines               //
+///////////////////////////
+
 #define lancPin 13
 #define cmdPin 15
 #define ledPin LED_BUILTIN
@@ -73,6 +181,9 @@
 #define ledOFF (digitalWrite(ledPin, LOW))     // Reset LED pin 13 (PB5)
 #define lancPinREAD (digitalRead(lancPin)) // Reads pin 11 (PB3)
 
+///////////////////////////
+// Variables             //
+///////////////////////////
 
 int bitDura = 104;           // Duration of one LANC bit in microseconds, orginal 104
 int halfbitDura = 52;        // Half of bitDura
@@ -106,66 +217,10 @@ String FocusRecFar = "9422"; // Used for RECORD state
 String FocusRecNear = "9423"; // Used for RECORD state
 String FocusAuto = "2843";
 
-void setup() {
-  pinMode(cmdPin, OUTPUT);
-  pinMode(lancPin, INPUT);
-  pinMode(ledPin, OUTPUT);
-  cmdPinOFF;                  // Reset LANC control pin so that the LANC line is unaffected(HIGH)
-  Serial.begin(9600);        // Start serial port
-  Serial.println("Welcome to the Arduino LANC-RS232 interface");
-  Serial.println("Send two bytes in hex form etc. 02AF and wait for reply from camera");
-}
 
-
-void loop() {
-
-  while (Serial.available()) {
-    char inChar = (char)Serial.read();                               // Get the new byte
-
-    if(inChar == '0'){
-        executeCommand(RecordStart);
-      }
-
-      if(inChar == '1'){
-        executeCommand(IrisIncrement);
-      }
-
-      if(inChar == '2'){
-        executeCommand(IrisDecrement);
-      }
-
-      if(inChar == '3'){
-        executeCommand(FocusFar);
-      }
-
-      
-      if(inChar == '4'){
-        executeCommand(FocusNear);
-      }
-
-      
-      if(inChar == '5'){
-        executeCommand(FocusAuto);
-      }
-
-      
-      if(inChar == '6'){
-        executeCommand(IrisAutoAdjust);
-      }
-  }
-
-  if (strComplete) {                     // inString has arrived
-    if (hexchartobitarray()) {           // Convert hex chars to bitarray
-      sendLanc(4);                       // The LANC command needs to be repeated 4 times
-      bitarraytohexchar();               // Convert received bitarray to hex chars
-    }
-    for (int i = 0 ; i < 5 ; i++) {       // Clear input array
-      inString[i] = 0;
-    }
-    strComplete = false;                  // Reset data received flag
-  }
-
-}
+///////////////////////////
+// Helper functions      //
+///////////////////////////
 
 void executeCommand(String command) {
   inString[0] = command.charAt(0);
@@ -394,5 +449,107 @@ int hexchartoint(char hexchar) {
       return (int) (hexchar - 48);
       break;
   }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////// Common Functions ////////////////////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////
+// Setup code            //
+///////////////////////////
+
+void setup() {
+  pinMode(cmdPin, OUTPUT);
+  pinMode(lancPin, INPUT);
+  pinMode(ledPin, OUTPUT);
+  cmdPinOFF;                  // Reset LANC control pin so that the LANC line is unaffected(HIGH)
+  Serial.begin(9600);        // Start serial port
+
+  delay(1000);
+  Serial.println("Configuring access point...");
+
+  //set-up the custom IP address
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));   // subnet FF FF FF 00
+
+  /* You can remove the password parameter if you want the AP to be open. */
+  WiFi.softAP(ssid, password);
+
+  IPAddress myIP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(myIP);
+
+  server.on ( "/", handleRoot );
+  server.on ( "/rec", handleRecordRequest);
+  server.on ( "/focus", handleAutoFocusRequest);
+  server.onNotFound ( handleNotFound );
+
+  server.begin();
+  Serial.println("HTTP server started");
+}
+
+///////////////////////////
+// Main loop             //
+///////////////////////////
+
+void loop() {
+  server.handleClient();
+  while (Serial.available()) {
+    char inChar = (char)Serial.read();                               // Get the new byte
+
+    if (inChar == '0') {
+      executeCommand(RecordStart);
+    }
+
+    if (inChar == '1') {
+      executeCommand(IrisIncrement);
+    }
+
+    if (inChar == '2') {
+      executeCommand(IrisDecrement);
+    }
+
+    if (inChar == '3') {
+      executeCommand(FocusFar);
+    }
+
+
+    if (inChar == '4') {
+      executeCommand(FocusNear);
+    }
+
+
+    if (inChar == '5') {
+      executeCommand(FocusAuto);
+    }
+
+
+    if (inChar == '6') {
+      executeCommand(IrisAutoAdjust);
+    }
+  }
+
+  if (strComplete) {                     // inString has arrived
+    if (hexchartobitarray()) {           // Convert hex chars to bitarray
+      sendLanc(4);                       // The LANC command needs to be repeated 4 times
+      bitarraytohexchar();               // Convert received bitarray to hex chars
+    }
+    for (int i = 0 ; i < 5 ; i++) {       // Clear input array
+      inString[i] = 0;
+    }
+    strComplete = false;                  // Reset data received flag
+  }
+}
+
+//////////////////////////////
+// Request Handler Helpers
+//////////////////////////////
+void handleRecordRequest(){
+  executeCommand(RecordStart);
+  server.send ( 200, "text/plain", "Success" );
+}
+
+void handleAutoFocusRequest(){
+  executeCommand(FocusAuto);
+  server.send ( 200, "text/plain", "Success" );
 }
 
