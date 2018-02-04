@@ -83,6 +83,29 @@ boolean strComplete = false; // Indicator to see if the string is complete
 boolean lancCmd[16];         // Array for the lancCmd in bits
 boolean lancMessage[64];     // Array for the complete LANC message in bits
 
+
+///////////////////////////
+// BMCC command codes    //
+///////////////////////////
+
+String Nop = "0000";
+String RecordStart = "1833";
+String RecordStop = "8C19";
+String IrisIncrement = "2855"; // Used for IDLE state
+String IrisDecrement = "2853"; // Used for IDLE state
+String IrisRecIncrement = "942A"; // Used for RECORD state
+String IrisRecDecrement = "9429"; // Used for RECORD state
+String IrisAutoAdjust = "28AF";
+String FocusShuttleFar = "28E0"; // Used for IDLE state (value mask 0x0F00: 1 3 5 7 9 B D F)
+String FocusShuttleNear = "28F0"; // Used for IDLE state (value mask 0x0F00: 1 3 5 7 9 B D F)
+String FocusShuttleRecFar = "9470"; // Used for RECORD state (value mask 0x0700: 0 1 2 3 4 5 6 7)
+String FocusShuttleRecNear = "9478"; // Used for RECORD state (value mask 0x0700: 0 1 2 3 4 5 6 7)
+String FocusFar = "2845"; // Used for IDLE state
+String FocusNear = "2847"; // Used for IDLE state
+String FocusRecFar = "9422"; // Used for RECORD state
+String FocusRecNear = "9423"; // Used for RECORD state
+String FocusAuto = "2843";
+
 void setup() {
   pinMode(cmdPin, OUTPUT);
   pinMode(lancPin, INPUT);
@@ -98,30 +121,44 @@ void loop() {
 
   while (Serial.available()) {
     char inChar = (char)Serial.read();                               // Get the new byte
-    inString[strPointer++] = inChar;                                 // Add it to the input string
-    if ((inChar == '\n') || (inChar == '\r') || (strPointer > 4)) {  // If the incoming character is a newline, carriage return or 4 bytes has been received flag so the main loop can act
-      strComplete = true;
-      strPointer = 0;
-    }
+
+    if(inChar == '0'){
+        executeCommand(RecordStart);
+      }
+
+      if(inChar == '1'){
+        executeCommand(IrisIncrement);
+      }
+
+      if(inChar == '2'){
+        executeCommand(IrisDecrement);
+      }
+
+      if(inChar == '3'){
+        executeCommand(FocusFar);
+      }
+
+      
+      if(inChar == '4'){
+        executeCommand(FocusNear);
+      }
+
+      
+      if(inChar == '5'){
+        executeCommand(FocusAuto);
+      }
+
+      
+      if(inChar == '6'){
+        executeCommand(IrisAutoAdjust);
+      }
   }
 
   if (strComplete) {                     // inString has arrived
-    for (int i = 0; i < 4 ; i++) {    // Write back LANC message over serial
-      Serial.print(inString[i]);
-    }
-    Serial.print('\n');
     if (hexchartobitarray()) {           // Convert hex chars to bitarray
       sendLanc(4);                       // The LANC command needs to be repeated 4 times
       bitarraytohexchar();               // Convert received bitarray to hex chars
-      for (int i = 0; i < 24 ; i++) {    // Write back LANC message over serial
-        Serial.print(outString[i]);
-      }
-      Serial.print('\n');
     }
-    else {
-      Serial.println("Faulty input!");
-    }
-
     for (int i = 0 ; i < 5 ; i++) {       // Clear input array
       inString[i] = 0;
     }
@@ -130,7 +167,7 @@ void loop() {
 
 }
 
-void executeCommand(String command){
+void executeCommand(String command) {
   inString[0] = command.charAt(0);
   inString[1] = command.charAt(1);
   inString[2] = command.charAt(2);
@@ -251,7 +288,7 @@ void sendLanc(byte repeats) {
   response.  Multiple bytes of data may be available.
 */
 void serialEvent() {
-  
+
 }
 
 
