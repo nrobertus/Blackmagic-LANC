@@ -480,7 +480,12 @@ void setup() {
 
   server.on ( "/", handleRoot );
   server.on ( "/rec", handleRecordRequest);
-  server.on ( "/focus", handleAutoFocusRequest);
+  server.on ( "/focus_auto", handleFocusAutoRequest);
+  server.on ( "/focus_near", handleFocusNearRequest);
+  server.on ( "/focus_far", handleFocusFarRequest);
+  server.on ( "/iris_auto", handleIrisAutoRequest);
+  server.on ( "/iris_increment", handleIrisIncrementRequest);
+  server.on ( "/iris_decrement", handleIrisDecrementRequest);
   server.onNotFound ( handleNotFound );
 
   server.begin();
@@ -492,42 +497,8 @@ void setup() {
 ///////////////////////////
 
 void loop() {
-  server.handleClient();
-  while (Serial.available()) {
-    char inChar = (char)Serial.read();                               // Get the new byte
-
-    if (inChar == '0') {
-      executeCommand(RecordStart);
-    }
-
-    if (inChar == '1') {
-      executeCommand(IrisIncrement);
-    }
-
-    if (inChar == '2') {
-      executeCommand(IrisDecrement);
-    }
-
-    if (inChar == '3') {
-      executeCommand(FocusFar);
-    }
-
-
-    if (inChar == '4') {
-      executeCommand(FocusNear);
-    }
-
-
-    if (inChar == '5') {
-      executeCommand(FocusAuto);
-    }
-
-
-    if (inChar == '6') {
-      executeCommand(IrisAutoAdjust);
-    }
-  }
-
+  server.handleClient(); // Handle http client stuff
+  
   if (strComplete) {                     // inString has arrived
     if (hexchartobitarray()) {           // Convert hex chars to bitarray
       sendLanc(4);                       // The LANC command needs to be repeated 4 times
@@ -543,13 +514,39 @@ void loop() {
 //////////////////////////////
 // Request Handler Helpers
 //////////////////////////////
-void handleRecordRequest(){
+
+void handleRecordRequest() {
   executeCommand(RecordStart);
   server.send ( 200, "text/plain", "Success" );
 }
 
-void handleAutoFocusRequest(){
+void handleFocusAutoRequest() {
   executeCommand(FocusAuto);
+  server.send ( 200, "text/plain", "Success" );
+}
+
+void handleIrisAutoRequest() {
+  executeCommand(IrisAutoAdjust);
+  server.send ( 200, "text/plain", "Success" );
+}
+
+void handleFocusNearRequest() {
+  executeCommand(FocusNear);
+  server.send ( 200, "text/plain", "Success" );
+}
+
+void handleFocusFarRequest() {
+  executeCommand(FocusFar);
+  server.send ( 200, "text/plain", "Success" );
+}
+
+void handleIrisIncrementRequest() {
+  executeCommand(IrisIncrement);
+  server.send ( 200, "text/plain", "Success" );
+}
+
+void handleIrisDecrementRequest() {
+  executeCommand(IrisDecrement);
   server.send ( 200, "text/plain", "Success" );
 }
 
