@@ -4,8 +4,6 @@ import wifi from 'react-native-android-wifi';
 
 export default class App extends React.Component {
   render() {
-
-    console.log('here');
     return (
       <View style={styles.container}>
         <Text>Open up App.js to start working on your app!</Text>
