@@ -3,4 +3,4 @@
 .clang_complete
 .gcc-flags.json
 node_modules/
-gradle.properties
+*.properties
