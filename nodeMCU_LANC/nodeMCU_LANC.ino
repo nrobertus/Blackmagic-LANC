@@ -486,6 +486,7 @@ void setup() {
   server.on ( "/iris_auto", handleIrisAutoRequest);
   server.on ( "/iris_increment", handleIrisIncrementRequest);
   server.on ( "/iris_decrement", handleIrisDecrementRequest);
+  server.on ( "/status", handleStatusRequest);
   server.onNotFound ( handleNotFound );
 
   server.begin();
@@ -548,5 +549,9 @@ void handleIrisIncrementRequest() {
 void handleIrisDecrementRequest() {
   executeCommand(IrisDecrement);
   server.send ( 200, "text/plain", "Success" );
+}
+
+void handleStatusRequest(){
+  server.send(200, "text/plain", "Success");
 }
 

@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "C:\\Projects\\Personal\\Blackmagic-LANC\\nodeMCU_LANC_APP\\android\\app\\build\\intermediates\\res\\merged\\release\\color-v11\\abc_background_cache_hint_selector_material_dark.xml",
+        "source": "C:\\Projects\\Personal\\Blackmagic-LANC\\nodeMCU_LANC_APP\\android\\app\\build\\intermediates\\exploded-aar\\com.android.support\\appcompat-v7\\23.0.1\\res\\color-v11\\abc_background_cache_hint_selector_material_dark.xml"
+    },
+    {
+        "merged": "C:\\Projects\\Personal\\Blackmagic-LANC\\nodeMCU_LANC_APP\\android\\app\\build\\intermediates\\res\\merged\\release\\color-v11\\abc_background_cache_hint_selector_material_light.xml",
+        "source": "C:\\Projects\\Personal\\Blackmagic-LANC\\nodeMCU_LANC_APP\\android\\app\\build\\intermediates\\exploded-aar\\com.android.support\\appcompat-v7\\23.0.1\\res\\color-v11\\abc_background_cache_hint_selector_material_light.xml"
+    }
+]

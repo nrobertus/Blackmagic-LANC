@@ -6,8 +6,8 @@ export class SquareButton extends React.Component {
     const { onPress, value } = this.props;
     return(
       <TouchableHighlight onPress={onPress} underlayColor={'transparent'}>
-        <View style={SquareButtonStyle}>
-        <Text style={SquareButtonTextStyle}>{value}</Text>
+        <View style={SquareButtonStyle.button}>
+        <Text style={SquareButtonStyle.text}>{value}</Text>
         </View>
       </TouchableHighlight>
     );
@@ -15,15 +15,16 @@ export class SquareButton extends React.Component {
 }
 
 const SquareButtonStyle = {
-  backgroundColor: '#433D3E',
-  borderRadius: 15,
-  width:60,
-  height:60
-}
-
-const SquareButtonTextStyle = {
-  fontSize: 40,
-  color:'#FEFBFB',
-  textAlign:'center',
-  fontFamily: 'sans-serif'
+  button: {
+    backgroundColor: '#433D3E',
+    borderRadius: 15,
+    width:60,
+    height:60
+  },
+  text: {
+    fontSize: 40,
+    color:'#FEFBFB',
+    textAlign:'center',
+    fontFamily: 'sans-serif'
+  }
 }
